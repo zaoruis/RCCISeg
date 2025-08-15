@@ -79,16 +79,16 @@ class Depth_block(nn.Module):
         self.iwt = IWT()
         self.conv1 = nn.Conv2d(in_channels = in_channel, 
                                out_channels = in_channel, 
-                               kernel_size=1, stride=1)
+                               kernel_size=1, stride=1, bias=True)
         self.conv2 = nn.Conv2d(in_channels = in_channel, 
                                out_channels = in_channel, 
-                               kernel_size=1, stride=1)
+                               kernel_size=1, stride=1, bias=True)
         self.conv3 = nn.Conv2d(in_channels = in_channel, 
                                out_channels = in_channel, 
-                               kernel_size=1, stride=1)
+                               kernel_size=1, stride=1, bias=True)
         self.conv4 = nn.Conv2d(in_channels = in_channel, 
                                out_channels = in_channel, 
-                               kernel_size=1, stride=1)
+                               kernel_size=1, stride=1, bias=True)
  
     def forward(self, depth):
         n, c, h, w = depth.shape
