@@ -145,8 +145,6 @@ class Depth_backbone(nn.Module):
 
 
 
-
-# 基于不同的采样方法
 class Sampler(nn.Module):
     def __init__(self, in_channels, size, ratio = 0.5):
         super(Sampler, self).__init__()
@@ -161,95 +159,6 @@ class Sampler(nn.Module):
             nn.Conv2d(in_channels // 4, in_channels, 1, bias=False)
         )
     
-    # 随机采样
-    def random_sample(self, attn_map):
-        B, H, W = attn_map.shape
-        total_pixels = H * W 
-
-        num_samples = int(total_pixels * self.ratio)
-        all_samples = []
-
-        for b in range(B):
-            random_indices = torch.randperm(total_pixels)[:num_samples]
-
-            h_coords = random_indices // W 
-            w_coords = random_indices % W
-            coords = torch.stack([h_coords, w_coords], dim=1)
-            
-            all_samples.append(coords)
-            
-        return all_samples
-
-    # 等距采样
-    def equidistant_sample(self, attn_map):
-        B, H, W = attn_map.shape
-        total_pixels = H * W
-        num_samples = int(total_pixels * self.ratio)
-
-        # 计算 stride
-        approx_stride = (H * W / num_samples) ** 0.5
-        stride = max(1, int(approx_stride))
-
-        all_samples = []
-
-        for b in range(B):
-            coords = []
-            for i in range(0, H, stride):
-                for j in range(0, W, stride):
-                    coords.append([i, j])
-            # 若超过采样点数，随机截取（或直接取前 N 个）
-            if len(coords) > num_samples:
-                indices = torch.randperm(len(coords))[:num_samples]
-                coords = [coords[idx] for idx in indices]
-            else:
-                coords = coords[:num_samples]  # 不足时也不会报错
-            coords = torch.tensor(coords, dtype=torch.long, device=attn_map.device)
-            all_samples.append(coords)
-            
-        return all_samples
-
-    # 全局top-low采样
-    def global_top_low_sample(self, attn_map):
-        """
-        全局最大最小值采样（不分块），带熵自适应调整比例。
-        :param attn_map: Tensor, shape [B, H, W]
-        :return: List of [N_i, 2] tensors，表示每个样本的采样点位置（行列坐标）
-        """
-        B, H, W = attn_map.shape
-        indices_all = []
-
-        for b in range(B):
-            flat = attn_map[b].flatten()  # [H*W]
-            num_pixels = flat.numel()
-            k = int(num_pixels * self.ratio)
-
-            # 计算归一化熵
-            prob = F.softmax(flat, dim=0)
-            entropy = -torch.sum(prob * torch.log(prob + 1e-8)).item()
-            if num_pixels == 1:
-                norm_entropy = 0.1
-            else:
-                norm_entropy = max(0.1, entropy / torch.log(torch.tensor(float(num_pixels))).item())
-
-            # Top-K 和 Low-K 的个数
-            k_top = int(round(k * norm_entropy))
-            k_low = k - k_top
-
-            # 最大值和最小值采样
-            top_idx = torch.topk(flat, k_top, largest=True)[1]
-            low_idx = torch.topk(flat, k_low, largest=False)[1]
-
-            selected_idx = torch.cat([top_idx, low_idx], dim=0)  # shape: [k]
-
-            # 转换为坐标（H, W）
-            global_h = selected_idx // W
-            global_w = selected_idx % W
-            coords = torch.stack([global_h, global_w], dim=1)  # [k, 2]
-
-            indices_all.append(coords)
-
-        return indices_all  # List of [k, 2]
-
     # 基于窗口的top-low采样
     def window_top_low_sample(self, attn_map):
         B, H, W = attn_map.shape
@@ -313,7 +222,7 @@ class Sampler(nn.Module):
     # 前向传播
     def forward(self, a, b):
         attn = self.attn_conv(a).squeeze(1)  # [B, H, W]
-        indices = self.equidistant_sample(attn)       # 计算索引
+        indices = self.window_top_low_sample(attn)       # 计算索引
         sparse_b = self.scatter_sparse_features(b, indices)  # 构建稀疏图
         weight = self.fc(self.avg_pool(sparse_b))
         return weight
