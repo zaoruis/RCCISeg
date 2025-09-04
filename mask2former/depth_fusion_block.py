@@ -71,34 +71,80 @@ class IWT(nn.Module):
     def forward(self, x):
         return iwt_init(x)
 
+# 图网络卷积
+class GraphConvInteraction(nn.Module):
+    """
+    使用共享权重的图神经网络特征交互模块
+    通过权重共享大幅减少参数量，同时保持四个特征的交互能力
+    输入: 4个特征张量，每个维度为[b, c, h, w]
+    输出: 4个特征张量，每个维度保持[b, c, h, w]不变
+    """
+    def __init__(self, in_channels):
+        super(GraphConvInteraction, self).__init__()
+        self.inter_conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.inter_conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.inter_conv3 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+
+        self.self_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+
+        self.gate_conv = nn.Conv2d(in_channels * 2, in_channels, kernel_size=1)
+
+        self.relu = nn.ReLU()
+        
+    def forward(self, x1, x2, x3, x4):
+        # 计算节点间消息（使用共享卷积）
+        msg1_to_2 = self.inter_conv1(x1)
+        msg1_to_3 = self.inter_conv2(x1)
+        msg1_to_4 = self.inter_conv3(x1)
+        
+        msg2_to_1 = self.inter_conv1(x2)
+        msg2_to_3 = self.inter_conv2(x2)
+        msg2_to_4 = self.inter_conv3(x2)
+        
+        msg3_to_1 = self.inter_conv1(x3)
+        msg3_to_2 = self.inter_conv2(x3)
+        msg3_to_4 = self.inter_conv3(x3)
+        
+        msg4_to_1 = self.inter_conv1(x4)
+        msg4_to_2 = self.inter_conv2(x4)
+        msg4_to_3 = self.inter_conv3(x4)
+        
+        # 聚合消息（使用共享自更新卷积）
+        agg1 = self.self_conv(x1) + msg2_to_1 + msg3_to_1 + msg4_to_1
+        agg1 = self.relu(agg1)
+        
+        agg2 = self.self_conv(x2) + msg1_to_2 + msg3_to_2 + msg4_to_2
+        agg2 = self.relu(agg2)
+        
+        agg3 = self.self_conv(x3) + msg1_to_3 + msg2_to_3 + msg4_to_3
+        agg3 = self.relu(agg3)
+        
+        agg4 = self.self_conv(x4) + msg1_to_4 + msg2_to_4 + msg3_to_4
+        agg4 = self.relu(agg4)
+        
+        # 使用共享门控机制融合特征
+        out1 = x1 + self.gate_conv(torch.cat([x1, agg1], dim=1))
+        out2 = x2 + self.gate_conv(torch.cat([x2, agg2], dim=1))
+        out3 = x3 + self.gate_conv(torch.cat([x3, agg3], dim=1))
+        out4 = x4 + self.gate_conv(torch.cat([x4, agg4], dim=1))
+        
+        return out1, out2, out3, out4
+    
+    
 # depth_layer block
 class Depth_block(nn.Module):
-    def __init__(self, in_channel):
+    def __init__(self, in_channels):
         super(Depth_block, self).__init__()
         self.dwt = DWT()
         self.iwt = IWT()
-        self.conv1 = nn.Conv2d(in_channels = in_channel, 
-                               out_channels = in_channel, 
-                               kernel_size=1, stride=1, bias=True)
-        self.conv2 = nn.Conv2d(in_channels = in_channel, 
-                               out_channels = in_channel, 
-                               kernel_size=1, stride=1, bias=True)
-        self.conv3 = nn.Conv2d(in_channels = in_channel, 
-                               out_channels = in_channel, 
-                               kernel_size=1, stride=1, bias=True)
-        self.conv4 = nn.Conv2d(in_channels = in_channel, 
-                               out_channels = in_channel, 
-                               kernel_size=1, stride=1, bias=True)
+        self.GraphConv = GraphConvInteraction(in_channels)
  
     def forward(self, depth):
         n, c, h, w = depth.shape
         input_dwt = self.dwt(depth)
         input_LL, input_HL, input_LH, input_HH = input_dwt[:n, ...], input_dwt[n:2*n, ...], input_dwt[2*n:3*n, ...], input_dwt[3*n:, ...]
         
-        output_LL = self.conv1(input_LL)
-        output_HL = self.conv2(input_HL)
-        output_LH = self.conv3(input_LH)
-        output_HH = self.conv4(input_HH)
+        output_LL, output_HL, output_LH, output_HH = self.GraphConv(input_LL, input_HL, input_LH, input_HH)
         
         output_depth = torch.cat((output_LL, output_HL, output_LH, output_HH), dim = 0)
         depth = self.iwt(output_depth)
@@ -145,6 +191,8 @@ class Depth_backbone(nn.Module):
 
 
 
+
+# 基于不同的采样方法
 class Sampler(nn.Module):
     def __init__(self, in_channels, size, ratio = 0.5):
         super(Sampler, self).__init__()
@@ -158,7 +206,7 @@ class Sampler(nn.Module):
             nn.ReLU(),
             nn.Conv2d(in_channels // 4, in_channels, 1, bias=False)
         )
-    
+
     # 基于窗口的top-low采样
     def window_top_low_sample(self, attn_map):
         B, H, W = attn_map.shape
