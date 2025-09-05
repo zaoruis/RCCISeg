@@ -81,9 +81,7 @@ class GraphConvInteraction(nn.Module):
     """
     def __init__(self, in_channels):
         super(GraphConvInteraction, self).__init__()
-        self.inter_conv1 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.inter_conv2 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
-        self.inter_conv3 = nn.Conv2d(in_channels, in_channels, kernel_size=1)
+        self.inter_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
 
         self.self_conv = nn.Conv2d(in_channels, in_channels, kernel_size=1)
 
@@ -93,21 +91,21 @@ class GraphConvInteraction(nn.Module):
         
     def forward(self, x1, x2, x3, x4):
         # 计算节点间消息（使用共享卷积）
-        msg1_to_2 = self.inter_conv1(x1)
-        msg1_to_3 = self.inter_conv2(x1)
-        msg1_to_4 = self.inter_conv3(x1)
+        msg1_to_2 = self.inter_conv(x1)
+        msg1_to_3 = self.inter_conv(x1)
+        msg1_to_4 = self.inter_conv(x1)
         
-        msg2_to_1 = self.inter_conv1(x2)
-        msg2_to_3 = self.inter_conv2(x2)
-        msg2_to_4 = self.inter_conv3(x2)
+        msg2_to_1 = self.inter_conv(x2)
+        msg2_to_3 = self.inter_conv(x2)
+        msg2_to_4 = self.inter_conv(x2)
         
-        msg3_to_1 = self.inter_conv1(x3)
-        msg3_to_2 = self.inter_conv2(x3)
-        msg3_to_4 = self.inter_conv3(x3)
+        msg3_to_1 = self.inter_conv(x3)
+        msg3_to_2 = self.inter_conv(x3)
+        msg3_to_4 = self.inter_conv(x3)
         
-        msg4_to_1 = self.inter_conv1(x4)
-        msg4_to_2 = self.inter_conv2(x4)
-        msg4_to_3 = self.inter_conv3(x4)
+        msg4_to_1 = self.inter_conv(x4)
+        msg4_to_2 = self.inter_conv(x4)
+        msg4_to_3 = self.inter_conv(x4)
         
         # 聚合消息（使用共享自更新卷积）
         agg1 = self.self_conv(x1) + msg2_to_1 + msg3_to_1 + msg4_to_1
