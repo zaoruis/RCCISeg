@@ -350,3 +350,45 @@ class Resnet(nn.Module):
         x4 = self.layer4(x3)
 
         return [x1, x2, x3, x4]
+    
+    
+    
+    
+from thop import profile    
+
+def calculate_model_flops(model, input_shape):
+    """
+    计算模型的FLOPs和参数量
+    
+    参数:
+        model: PyTorch模型
+        input_shape: 输入张量的形状 (batch_size, channels, height, width)
+    
+    返回:
+        flops: 浮点运算次数
+        params: 参数量
+    """
+    # 创建输入张量
+    input_tensor = torch.randn(*input_shape)
+    
+    # 计算FLOPs和参数量
+    flops, params = profile(model, inputs=(input_tensor,))
+    
+    return flops, params
+
+if __name__ == "__main__":
+    # 初始化模型 - 请替换为你的实际模型
+    model = Depth_backbone()
+    
+    # 输入形状 [batch_size, channels, height, width]
+    input_shape = (1, 1, 224, 224)
+    
+    # 计算模型FLOPs和参数量
+    flops, params = calculate_model_flops(model, input_shape)
+    
+    # 输出结果（可根据需要转换为不同单位）
+    print(f"模型FLOPs: {flops:.2f} 次")
+    print(f"模型FLOPs (亿次): {flops / 1e8:.2f} 亿次")
+    print(f"模型FLOPs (十亿次/GFLOPs): {flops / 1e9:.2f} GFLOPs")
+    print(f"模型参数量: {params:.2f} 个")
+    print(f"模型参数量 (百万): {params / 1e6:.2f} M")
