@@ -190,7 +190,6 @@ class Depth_backbone(nn.Module):
 
 
 
-# 基于不同的采样方法
 class Sampler(nn.Module):
     def __init__(self, in_channels, size, ratio = 0.5):
         super(Sampler, self).__init__()
