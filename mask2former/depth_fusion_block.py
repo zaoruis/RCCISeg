@@ -91,33 +91,29 @@ class GraphConvInteraction(nn.Module):
         
     def forward(self, x1, x2, x3, x4):
         # 计算节点间消息（使用共享卷积）
-        msg1_to_2 = self.inter_conv(x1)
-        msg1_to_3 = self.inter_conv(x1)
-        msg1_to_4 = self.inter_conv(x1)
+        msg1_to_n = self.inter_conv(x1)
+
         
-        msg2_to_1 = self.inter_conv(x2)
-        msg2_to_3 = self.inter_conv(x2)
-        msg2_to_4 = self.inter_conv(x2)
+        msg2_to_n = self.inter_conv(x2)
+
         
-        msg3_to_1 = self.inter_conv(x3)
-        msg3_to_2 = self.inter_conv(x3)
-        msg3_to_4 = self.inter_conv(x3)
+        msg3_to_n = self.inter_conv(x3)
+
         
-        msg4_to_1 = self.inter_conv(x4)
-        msg4_to_2 = self.inter_conv(x4)
-        msg4_to_3 = self.inter_conv(x4)
+        msg4_to_n = self.inter_conv(x4)
+
         
         # 聚合消息（使用共享自更新卷积）
-        agg1 = self.self_conv(x1) + msg2_to_1 + msg3_to_1 + msg4_to_1
+        agg1 = self.self_conv(x1) + msg2_to_n + msg3_to_n + msg4_to_n
         agg1 = self.relu(agg1)
         
-        agg2 = self.self_conv(x2) + msg1_to_2 + msg3_to_2 + msg4_to_2
+        agg2 = self.self_conv(x2) + msg1_to_n + msg3_to_n + msg4_to_n
         agg2 = self.relu(agg2)
         
-        agg3 = self.self_conv(x3) + msg1_to_3 + msg2_to_3 + msg4_to_3
+        agg3 = self.self_conv(x3) + msg1_to_n + msg2_to_n + msg4_to_n
         agg3 = self.relu(agg3)
         
-        agg4 = self.self_conv(x4) + msg1_to_4 + msg2_to_4 + msg3_to_4
+        agg4 = self.self_conv(x4) + msg1_to_n + msg2_to_n + msg3_to_n
         agg4 = self.relu(agg4)
         
         # 使用共享门控机制融合特征
@@ -377,7 +373,7 @@ def calculate_model_flops(model, input_shape):
 
 if __name__ == "__main__":
     # 初始化模型 - 请替换为你的实际模型
-    model = Depth_backbone()
+    model = Resnet()
     
     # 输入形状 [batch_size, channels, height, width]
     input_shape = (1, 1, 224, 224)
